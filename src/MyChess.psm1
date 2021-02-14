@@ -1,10 +1,12 @@
+$ErrorActionPreference = "Stop"
+
 . $PSScriptRoot\Classes.ps1
 
 function Connect-MyChess
 (
     [Parameter(HelpMessage = "My Chess environment")] 
     [ValidateSet("Development", "Production")]
-    [string] $Environment = "Production"    
+    [string] $Environment = "Production"
 ) {
     $environments = @{ 
         "Development" = @{
@@ -18,6 +20,32 @@ function Connect-MyChess
             ResourceId = "52cec0e5-b1db-4a0d-bd51-dcffb7c67959"
         };
     }
+
+    $selectedEnvironment = $environments[$Environment]
+
+    $authEndpoint = "https://login.microsoftonline.com/common/oauth2/devicecode?resource=$($selectedEnvironment.ResourceId)&client_id=$($selectedEnvironment.AppId)"
+    $tokenEndpoint = "https://login.microsoftonline.com/common/oauth2/token"
+
+    $authResponse = Invoke-RestMethod -Uri $authEndpoint
+    Write-Host $authResponse.message
+
+    $tokenPayload = "resource=$($selectedEnvironment.ResourceId)&client_id=$($selectedEnvironment.AppId)&grant_type=device_code&code=$($authResponse.device_code)"
+
+    $accessToken = ""
+    while ($true) {
+        try {
+            Start-Sleep -Seconds $deviceCodeResponse.interval
+            $tokenEndpointResponse = Invoke-RestMethod -Uri $tokenEndpoint -Method POST -Body $tokenPayload
+            if ($null -ne $tokenEndpointResponse.access_token) {
+                $accessToken = $tokenEndpointResponse.access_token
+                break
+            }
+        }
+        catch {}
+    }
+
+    $env:MYCHESS_ADDRESS = $environments[$Environment].Address
+    $env:MYCHESS_TOKEN = $accessToken
 }
 
 function Disconnect-MyChess
