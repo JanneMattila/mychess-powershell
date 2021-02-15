@@ -9,6 +9,7 @@ function Connect-MyChess
     [string] 
     $Environment = "Production"
 ) {
+    Disconnect-MyChess
     $environments = @{ 
         "Development" = @{
             Address    = "https://azfun-mychess-z67p7cxye4n5q.azurewebsites.net";
@@ -40,17 +41,17 @@ function Connect-MyChess
     $accessToken = ""
     while ($true) {
         try {
+            Start-Sleep -Seconds $authResponse.interval
             $tokenEndpointResponse = Invoke-RestMethod -Uri $tokenEndpoint -Method POST -Body $tokenPayload
             if ($null -ne $tokenEndpointResponse.access_token) {
                 $accessToken = $tokenEndpointResponse.access_token
                 break
             }
-            Start-Sleep -Seconds $authResponse.interval
         }
         catch {}
     }
-
-    $global:MYCHESS = @{
+    
+    New-Variable -Scope Global -Name MYCHESS -Value @{
         "Address" = $environments[$Environment].Address
         "Token"   = $accessToken
     }
@@ -59,7 +60,7 @@ function Connect-MyChess
 function Disconnect-MyChess
 (
 ) {
-    Remove-Variable MYCHESS -Scope Global -Force
+    Remove-Variable MYCHESS -Scope Global -Force -ErrorAction SilentlyContinue
 }
 
 function Get-MyChessGame
