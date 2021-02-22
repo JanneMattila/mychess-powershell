@@ -7,7 +7,12 @@ function Connect-MyChess
     [Parameter(HelpMessage = "My Chess environment")] 
     [ValidateSet("Development", "Production")]
     [string] 
-    $Environment = "Production"
+    $Environment = "Production",
+
+    [Parameter(HelpMessage = "My Chess login tenant")] 
+    [ValidateSet("common", "consumers")]
+    [string] 
+    $Tenant = "consumers"
 ) {
     Disconnect-MyChess
     $environments = @{ 
@@ -25,8 +30,8 @@ function Connect-MyChess
 
     $selectedEnvironment = $environments[$Environment]
 
-    $authEndpoint = "https://login.microsoftonline.com/common/oauth2/devicecode?resource=$($selectedEnvironment.ResourceId)&client_id=$($selectedEnvironment.AppId)"
-    $tokenEndpoint = "https://login.microsoftonline.com/common/oauth2/token"
+    $authEndpoint = "https://login.microsoftonline.com/$Tenant/oauth2/devicecode?resource=$($selectedEnvironment.ResourceId)&client_id=$($selectedEnvironment.AppId)"
+    $tokenEndpoint = "https://login.microsoftonline.com/$Tenant/oauth2/token"
 
     $authResponse = Invoke-RestMethod -Uri $authEndpoint
     try {
