@@ -78,7 +78,7 @@ function Get-MyChessParameter
 (
 ) {
     $parameters = Get-Content -Path $configFile | ConvertFrom-Json
-    if ((Get-Date -UnixTimeSeconds $parameters.Value.Expires) -lt (Get-Date -AsUTC)) {
+    if ((Get-Date -UnixTimeSeconds $parameters.Expires) -lt (Get-Date -AsUTC)) {
         $refreshEndpoint = "https://login.microsoftonline.com/common/oauth2/token"
         $refreshPayload = "resource=$($parameters.ResourceId)&client_id=$($parameters.AppId)&grant_type=refresh_token&refresh_token=$($parameters.RefreshToken)"
         $refreshResponse = Invoke-RestMethod -Uri $refreshEndpoint -Method POST -Body $refreshPayload
