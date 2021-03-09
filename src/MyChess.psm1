@@ -2,6 +2,8 @@ $ErrorActionPreference = "Stop"
 
 . $PSScriptRoot\Classes.ps1
 
+$configFile = Join-Path -Path $env:HOME -ChildPath ".mychess" -AdditionalChildPath "mychess.json"
+
 function Connect-MyChess
 (
     [Parameter(HelpMessage = "My Chess environment")] 
@@ -30,7 +32,7 @@ function Connect-MyChess
 
     $selectedEnvironment = $environments[$Environment]
 
-    $authEndpoint = "https://login.microsoftonline.com/$Tenant/oauth2/devicecode?resource=$($selectedEnvironment.ResourceId)&client_id=$($selectedEnvironment.AppId)"
+    $authEndpoint = "https://login.microsoftonline.com/common/oauth2/devicecode?resource=$($selectedEnvironment.ResourceId)&client_id=$($selectedEnvironment.AppId)"
     $tokenEndpoint = "https://login.microsoftonline.com/$Tenant/oauth2/token"
 
     $authResponse = Invoke-RestMethod -Uri $authEndpoint
@@ -42,30 +44,52 @@ function Connect-MyChess
     Write-Host $authResponse.message
 
     $tokenPayload = "resource=$($selectedEnvironment.ResourceId)&client_id=$($selectedEnvironment.AppId)&grant_type=device_code&code=$($authResponse.device_code)"
-
-    $accessToken = ""
     while ($true) {
         try {
             Start-Sleep -Seconds $authResponse.interval
             $tokenEndpointResponse = Invoke-RestMethod -Uri $tokenEndpoint -Method POST -Body $tokenPayload
             if ($null -ne $tokenEndpointResponse.access_token) {
-                $accessToken = $tokenEndpointResponse.access_token
                 break
             }
         }
         catch {}
     }
     
-    New-Variable -Scope Global -Name MYCHESS -Value @{
-        "Address" = $environments[$Environment].Address
-        "Token"   = $accessToken
-    }
+    New-Item -Path $configFile -Force | Out-Null
+    @{
+        "Tenant"       = $Tenant
+        "Address"      = $environments[$Environment].Address
+        "ResourceId"   = $environments[$Environment].ResourceId
+        "AppId"        = $environments[$Environment].AppId
+        "RefreshToken" = $tokenEndpointResponse.refresh_token
+        "AccessToken"  = $tokenEndpointResponse.access_token
+        "Expires"      = $tokenEndpointResponse.expires_on
+        "Scope"        = $tokenEndpointResponse.scope
+    } | ConvertTo-Json | Set-Content -Path $configFile
 }
 
 function Disconnect-MyChess
 (
 ) {
-    Remove-Variable MYCHESS -Scope Global -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $configFile -Force -ErrorAction SilentlyContinue | Out-Null
+}
+
+function Get-MyChessParameter
+(
+) {
+    $parameters = Get-Content -Path $configFile | ConvertFrom-Json
+    if ((Get-Date -UnixTimeSeconds $parameters.Value.Expires) -lt (Get-Date -AsUTC)) {
+        $refreshEndpoint = "https://login.microsoftonline.com/common/oauth2/token"
+        $refreshPayload = "resource=$($parameters.ResourceId)&client_id=$($parameters.AppId)&grant_type=refresh_token&refresh_token=$($parameters.RefreshToken)"
+        $refreshResponse = Invoke-RestMethod -Uri $refreshEndpoint -Method POST -Body $refreshPayload
+        $refreshResponse
+        $parameters.RefreshToken = $refreshResponse.refresh_token
+        $parameters.AccessToken = $refreshResponse.access_token
+        $parameters.Expires = $refreshResponse.expires_on
+        $parameters.Scope = $refreshResponse.scope
+        $parameters | ConvertTo-Json | Set-Content -Path $configFile
+    }
+    $parameters
 }
 
 function Get-MyChessGame
@@ -75,8 +99,9 @@ function Get-MyChessGame
     [string] 
     $GameState = "WaitingForYou"
 ) {
-    $uri = $global:MYCHESS.Address + "/api/games?state=" + $GameState
-    $token = ConvertTo-SecureString -String $global:MYCHESS.Token -AsPlainText
+    $config = Get-MyChessParameter
+    $uri = $config.Address + "/api/games?state=" + $GameState
+    $token = ConvertTo-SecureString -String $config.AccessToken -AsPlainText
     $games = Invoke-RestMethod -Uri $uri -Authentication Bearer -Token $token
     $games
 }
