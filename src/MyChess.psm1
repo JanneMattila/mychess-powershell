@@ -32,10 +32,12 @@ function Connect-MyChess
 
     $selectedEnvironment = $environments[$Environment]
 
-    $authEndpoint = "https://login.microsoftonline.com/common/oauth2/devicecode?resource=$($selectedEnvironment.ResourceId)&client_id=$($selectedEnvironment.AppId)"
-    $tokenEndpoint = "https://login.microsoftonline.com/$Tenant/oauth2/token"
+    $authPayload = "scope=offline_access $($selectedEnvironment.ResourceId)/.default&client_id=$($selectedEnvironment.AppId)"
 
-    $authResponse = Invoke-RestMethod -Uri $authEndpoint
+    $authEndpoint = "https://login.microsoftonline.com/$Tenant/oauth2/v2.0/devicecode"
+    $tokenEndpoint = "https://login.microsoftonline.com/$Tenant/oauth2/v2.0/token"
+
+    $authResponse = Invoke-RestMethod -Uri $authEndpoint -Method Post -Body $authPayload
     try {
         # Windows only for now.
         $authResponse.user_code | clip
@@ -43,11 +45,12 @@ function Connect-MyChess
     catch {}
     Write-Host $authResponse.message
 
-    $tokenPayload = "resource=$($selectedEnvironment.ResourceId)&client_id=$($selectedEnvironment.AppId)&grant_type=device_code&code=$($authResponse.device_code)"
+    $tokenTime = [int64](Get-Date -AsUTC -UFormat %s)
+    $tokenPayload = "client_id=$($selectedEnvironment.AppId)&grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=$($authResponse.device_code)"
     while ($true) {
         try {
             Start-Sleep -Seconds $authResponse.interval
-            $tokenEndpointResponse = Invoke-RestMethod -Uri $tokenEndpoint -Method POST -Body $tokenPayload
+            $tokenEndpointResponse = Invoke-RestMethod -Uri $tokenEndpoint -Method Post -Body $tokenPayload
             if ($null -ne $tokenEndpointResponse.access_token) {
                 break
             }
@@ -63,7 +66,7 @@ function Connect-MyChess
         "AppId"        = $environments[$Environment].AppId
         "RefreshToken" = $tokenEndpointResponse.refresh_token
         "AccessToken"  = $tokenEndpointResponse.access_token
-        "Expires"      = $tokenEndpointResponse.expires_on
+        "Expires"      = $tokenTime + $tokenEndpointResponse.expires_in
         "Scope"        = $tokenEndpointResponse.scope
     } | ConvertTo-Json | Set-Content -Path $configFile
 }
@@ -79,13 +82,13 @@ function Get-MyChessParameter
 ) {
     $parameters = Get-Content -Path $configFile | ConvertFrom-Json
     if ((Get-Date -UnixTimeSeconds $parameters.Expires) -lt (Get-Date -AsUTC)) {
-        $refreshEndpoint = "https://login.microsoftonline.com/common/oauth2/token"
-        $refreshPayload = "resource=$($parameters.ResourceId)&client_id=$($parameters.AppId)&grant_type=refresh_token&refresh_token=$($parameters.RefreshToken)"
-        $refreshResponse = Invoke-RestMethod -Uri $refreshEndpoint -Method POST -Body $refreshPayload
-        $refreshResponse
+        $tokenTime = [int64](Get-Date -AsUTC -UFormat %s)
+        $refreshEndpoint = "https://login.microsoftonline.com/$($parameters.Tenant)/oauth2/v2.0/token"
+        $refreshPayload = "scope=offline_access $($parameters.ResourceId)/.default&client_id=$($parameters.AppId)&grant_type=refresh_token&refresh_token=$($parameters.RefreshToken)"
+        $refreshResponse = Invoke-RestMethod -Uri $refreshEndpoint -Method Post -Body $refreshPayload
         $parameters.RefreshToken = $refreshResponse.refresh_token
         $parameters.AccessToken = $refreshResponse.access_token
-        $parameters.Expires = $refreshResponse.expires_on
+        $parameters.Expires = $tokenTime + $refreshResponse.expires_in
         $parameters.Scope = $refreshResponse.scope
         $parameters | ConvertTo-Json | Set-Content -Path $configFile
     }
