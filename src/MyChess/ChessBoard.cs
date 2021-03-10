@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MyChess.Interfaces;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -878,12 +879,27 @@ namespace MyChess
             return MakeMove(move);
         }
 
-        public void Load(string[] moves)
+        public void Load(MyChessGame game)
         {
             Initialize();
-            foreach (var move in moves)
+            foreach (var gameMove in game.Moves)
             {
-                MakeMove(move);
+                MakeMove(gameMove.Move);
+                if (gameMove.SpecialMove != null)
+                {
+                    switch (gameMove.SpecialMove)
+                    {
+                        case MyChessGameSpecialMove.PromotionToRook:
+                            ChangePromotion(PieceRank.Rook);
+                            break;
+                        case MyChessGameSpecialMove.PromotionToKnight:
+                            ChangePromotion(PieceRank.Knight);
+                            break;
+                        case MyChessGameSpecialMove.PromotionToBishop:
+                            ChangePromotion(PieceRank.Bishop);
+                            break;
+                    }
+                }
             }
         }
 

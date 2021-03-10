@@ -110,6 +110,17 @@ function Get-MyChessGame
     $games
 }
 
+function Get-MyChessBoard
+(
+    [Parameter(HelpMessage = "Game", Mandatory)] 
+    [MyChess.Interfaces.MyChessGame] 
+    $Game
+) {
+    $board = [MyChess.Chessboard]::new()
+    $board.Load($Game)
+    $board
+}
+
 function New-MyChessGameMove
 (
 ) {

@@ -73,6 +73,7 @@
         'Connect-MyChess'
         'Disconnect-MyChess'
         'Get-MyChessGame'
+        'Get-MyChessBoard'
         'New-MyChessGameMove'
         'Get-MyChessFriend'
         'New-MyChessGame'
