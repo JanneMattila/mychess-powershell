@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 . $PSScriptRoot\Classes.ps1
 
 $configFile = Join-Path -Path $env:HOME -ChildPath ".mychess" -AdditionalChildPath "mychess.json"
+Add-Type -Path $PSScriptRoot\MyChess.dll
 
 function Connect-MyChess
 (
@@ -105,7 +106,7 @@ function Get-MyChessGame
     $config = Get-MyChessParameter
     $uri = $config.Address + "/api/games?state=" + $GameState
     $token = ConvertTo-SecureString -String $config.AccessToken -AsPlainText
-    $games = Invoke-RestMethod -Uri $uri -Authentication Bearer -Token $token
+    $games = [MyChess.Interfaces.MyChessGame[]](Invoke-RestMethod -Uri $uri -Authentication Bearer -Token $token)
     $games
 }
 
@@ -118,7 +119,11 @@ function New-MyChessGameMove
 function Get-MyChessFriend
 (
 ) {
-    throw [System.NotImplementedException]::new()
+    $config = Get-MyChessParameter
+    $uri = $config.Address + "/api/users/me/friends"
+    $token = ConvertTo-SecureString -String $config.AccessToken -AsPlainText
+    $friends = [MyChess.Interfaces.User[]](Invoke-RestMethod -Uri $uri -Authentication Bearer -Token $token)
+    $friends
 }
 
 function New-MyChessGame
